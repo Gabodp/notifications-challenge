@@ -1,16 +1,14 @@
-
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from database import get_db
 
-from schemas import NotificationCreate, NotificationResponse, NotificationUpdate
-
-from enums import Entity
 import models
+from database import get_db
+from enums import Entity
 from helpers import entity_not_found_exception
+from schemas import NotificationCreate, NotificationResponse, NotificationUpdate
 
 router = APIRouter()
 
@@ -19,7 +17,6 @@ router = APIRouter()
 def get_notifications(db: Annotated[Session, Depends(get_db)]):
     result = db.execute(select(models.Notification))
     return result.scalars().all()
-
 
 
 @router.get("/{notification_id}/")
@@ -36,10 +33,11 @@ def get_notification(notification_id: int, db: Annotated[Session, Depends(get_db
 
 
 @router.post(
-    "/", 
-    response_model=NotificationResponse,
-    status_code=status.HTTP_201_CREATED)
-def create_notification(notification: NotificationCreate, db: Annotated[Session, Depends(get_db)]):
+    "/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
+)
+def create_notification(
+    notification: NotificationCreate, db: Annotated[Session, Depends(get_db)]
+):
     result = db.execute(
         select(models.User).where(models.User.id == notification.user_id)
     )
@@ -49,10 +47,10 @@ def create_notification(notification: NotificationCreate, db: Annotated[Session,
         entity_not_found_exception(Entity.USER)
 
     new_notification = models.Notification(
-        title = notification.title,
-        content = notification.content,
-        channel = notification.channel,
-        user_id = notification.user_id
+        title=notification.title,
+        content=notification.content,
+        channel=notification.channel,
+        user_id=notification.user_id,
     )
 
     db.add(new_notification)
@@ -61,14 +59,12 @@ def create_notification(notification: NotificationCreate, db: Annotated[Session,
 
     return new_notification
 
-@router.patch(
-    "/{notification_id}",
-    response_model=NotificationResponse
-)
+
+@router.patch("/{notification_id}", response_model=NotificationResponse)
 def update_notification(
     notification_id: int,
     notification_data: NotificationUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
 ):
     result = db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
@@ -87,10 +83,7 @@ def update_notification(
     return notification
 
 
-@router.delete(
-    "/{notification_id}",
-    status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(notification_id: int, db: Annotated[Session, Depends(get_db)]):
     result = db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
@@ -102,4 +95,3 @@ def delete_notification(notification_id: int, db: Annotated[Session, Depends(get
 
     db.delete(notification)
     db.commit()
-        
