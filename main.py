@@ -1,20 +1,8 @@
 from fastapi import FastAPI
 
-
-from enums import Channel
+from routers import notifications
 
 app = FastAPI()
 
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
-notifications = [
-    {
-        "id": 1,
-        "title": "Notification de prueba",
-        "content": "Este es un contenido de prueba",
-        "channel": Channel.SMS
-    }
-]
-
-@app.get("/api/notifications")
-def get_notifications():
-    return notifications
