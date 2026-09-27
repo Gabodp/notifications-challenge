@@ -12,3 +12,4 @@ class Channel(Enum):
 class Entity(Enum):
     NOTIFICATION = "notification"
     USER = "user"
+    USERNAME = "username"

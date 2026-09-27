@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import models
 from database import get_db
@@ -14,14 +14,16 @@ router = APIRouter()
 
 
 @router.get("/", response_model=list[NotificationResponse])
-def get_notifications(db: Annotated[Session, Depends(get_db)]):
-    result = db.execute(select(models.Notification))
+async def get_notifications(db: Annotated[AsyncSession, Depends(get_db)]):
+    result = await db.execute(select(models.Notification))
     return result.scalars().all()
 
 
-@router.get("/{notification_id}/")
-def get_notification(notification_id: int, db: Annotated[Session, Depends(get_db)]):
-    result = db.execute(
+@router.get("/{notification_id}/", response_model=NotificationResponse)
+async def get_notification(
+    notification_id: int, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    result = await db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
     )
 
@@ -35,10 +37,10 @@ def get_notification(notification_id: int, db: Annotated[Session, Depends(get_db
 @router.post(
     "/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
 )
-def create_notification(
-    notification: NotificationCreate, db: Annotated[Session, Depends(get_db)]
+async def create_notification(
+    notification: NotificationCreate, db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    result = db.execute(
+    result = await db.execute(
         select(models.User).where(models.User.id == notification.user_id)
     )
 
@@ -54,19 +56,19 @@ def create_notification(
     )
 
     db.add(new_notification)
-    db.commit()
-    db.refresh(new_notification)
+    await db.commit()
+    await db.refresh(new_notification)
 
     return new_notification
 
 
 @router.patch("/{notification_id}", response_model=NotificationResponse)
-def update_notification(
+async def update_notification(
     notification_id: int,
     notification_data: NotificationUpdate,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    result = db.execute(
+    result = await db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
     )
     notification = result.scalars().first()
@@ -78,14 +80,16 @@ def update_notification(
     for field, value in update_data.items():
         setattr(notification_data, field, value)
 
-    db.commit()
-    db.refresh(notification, attribute_names=["sender"])
+    await db.commit()
+    await db.refresh(notification, attribute_names=["sender"])
     return notification
 
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_notification(notification_id: int, db: Annotated[Session, Depends(get_db)]):
-    result = db.execute(
+async def delete_notification(
+    notification_id: int, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    result = await db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
     )
     notification = result.scalars().first()
@@ -93,5 +97,5 @@ def delete_notification(notification_id: int, db: Annotated[Session, Depends(get
     if not notification:
         entity_not_found_exception(Entity.NOTIFICATION)
 
-    db.delete(notification)
-    db.commit()
+    await db.delete(notification)
+    await db.commit()
