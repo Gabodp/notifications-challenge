@@ -10,13 +10,24 @@ class UserBase(BaseModel):
     email: EmailStr = Field(max_length=120)
 
 class UserCreate(UserBase):
-    pass
+    password: str = Field(min_length=8)
 
-class UserResponse(UserBase):
+class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
-    name: str
-    
+    username: str
 
+
+class UserPrivate(UserPublic):
+    email: EmailStr
+
+    
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+    
 class NotificationBase(BaseModel):
     title: str = Field(min_length=1, max_length=50)
     content: str = Field(max_length=150)
@@ -37,5 +48,5 @@ class NotificationResponse(NotificationBase):
     title: str
     content: str
     channel: Channel
-    sender: UserResponse
+    sender: UserPublic
     date_created: datetime

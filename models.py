@@ -15,6 +15,7 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(150), nullable=False)
 
     notifications: Mapped[list[Notification]] = relationship(
         back_populates="sender",
