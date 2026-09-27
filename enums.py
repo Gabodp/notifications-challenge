@@ -5,3 +5,8 @@ class Channel(Enum):
     EMAIL = "email"
     SMS = "sms"
     PUSH = "push"
+
+@unique
+class Entity(Enum):
+    NOTIFICATION = "notification"
+    USER = "user"
