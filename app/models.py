@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
-from enums import Channel
+from app.database import Base
+from app.enums import Channel
 
 
 class User(Base):
@@ -39,4 +39,50 @@ class Notification(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
+    __mapper_args__ = {
+        "polymorphic_identity": "notifications",
+        "polymorphic_on": channel,
+    }
+
     sender: Mapped[User] = relationship(back_populates="notifications")
+
+
+class EmailNotification(Notification):
+    __tablename__ = "email_notifications"
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("notifications.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    target_email: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    __mapper_args__ = {
+        "polymorphic_identity": Channel.EMAIL,
+    }
+
+
+class SMSNotification(Notification):
+    __tablename__ = "sms_notifications"
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("notifications.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+    target_phone_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __mapper_args__ = {
+        "polymorphic_identity": Channel.SMS,
+    }
+
+
+class PushNotification(Notification):
+    __tablename__ = "push_notifications"
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("notifications.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    device_token: Mapped[str] = mapped_column(String(80), nullable=False)
+    send_status: Mapped[str] = mapped_column(String(25), nullable=False)
+
+    __mapper_args__ = {
+        "polymorphic_identity": Channel.PUSH,
+    }
