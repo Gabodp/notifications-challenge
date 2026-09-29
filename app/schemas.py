@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from enums import Channel
+from app.enums import Channel
 
 
 class UserBase(BaseModel):
@@ -60,3 +61,24 @@ class NotificationResponse(NotificationBase):
     channel: Channel
     sender: UserPublic
     date_created: datetime
+
+
+class EmailNotificationCreate(NotificationCreate):
+    channel: Literal["email"]
+    target_email: EmailStr = Field(max_length=120)
+
+
+class SMSNotificationCreate(NotificationCreate):
+    channel: Literal["sms"]
+    target_phone_number: int
+
+
+class PushNotificationCreate(NotificationCreate):
+    channel: Literal["push"]
+    device_token: str = Field(max_length=25)
+
+
+AnyNotificationCreate = Annotated[
+    EmailNotificationCreate | SMSNotificationCreate | PushNotificationCreate,
+    Field(discriminator="channel"),
+]

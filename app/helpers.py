@@ -1,8 +1,6 @@
-from http.client import HTTPException
+from fastapi import HTTPException, status
 
-from fastapi import status
-
-from enums import Entity
+from app.enums import Entity
 
 
 def entity_not_found_exception(entity: Entity):

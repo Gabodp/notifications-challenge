@@ -4,7 +4,7 @@ import jwt
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
 
-from config import settings
+from app.config import settings
 
 password_hasher = PasswordHash.recommended()
 
@@ -21,7 +21,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
-    to_encode = data.copy() ## Where the data is stored like userId
+    to_encode = data.copy()  ## Where the data is stored like userId
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:

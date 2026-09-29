@@ -7,19 +7,19 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-import models
-from auth import (
+from app import models
+from app.auth import (
     create_access_token,
     hash_password,
     oauth2_scheme,
     verify_access_token,
     verify_password,
 )
-from config import settings
-from database import get_db
-from enums import Entity
-from helpers import entity_already_exists_exception, entity_not_found_exception
-from schemas import (
+from app.config import settings
+from app.database import get_db
+from app.enums import Entity
+from app.helpers import entity_already_exists_exception, entity_not_found_exception
+from app.schemas import (
     NotificationResponse,
     Token,
     UserCreate,
@@ -40,7 +40,7 @@ async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_
     result = await db.execute(
         select(models.User).where(
             func.lower(models.User.username) == user.username.lower()
-        ),
+        )
     )
     existing_user = result.scalars().first()
     if existing_user:
@@ -76,8 +76,7 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    # Look up user by email (case-insensitive)
-    # Note: OAuth2PasswordRequestForm uses "username" field, but we treat it as email
+
     result = await db.execute(
         select(models.User).where(
             func.lower(models.User.email) == form_data.username.lower(),
@@ -108,7 +107,6 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Get the currently authenticated user."""
     user_id = verify_access_token(token)
     if user_id is None:
         raise HTTPException(
@@ -206,12 +204,12 @@ async def update_partial_user(
 async def get_user_notifications(
     user_id: int, db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    result = db.execute(select(models.User).where(models.User.id == user_id))
+    result = await db.execute(select(models.User).where(models.User.id == user_id))
     existing_user = result.scalars().first()
     if not existing_user:
         entity_not_found_exception(Entity.USER)
 
-    result = db.execute(
+    result = await db.execute(
         select(models.Notification)
         .options(selectinload(models.Notification.sender))
         .where(models.Notification.user_id == user_id)

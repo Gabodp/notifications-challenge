@@ -4,11 +4,16 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import models
-from database import get_db
-from enums import Entity
-from helpers import entity_not_found_exception
-from schemas import NotificationCreate, NotificationResponse, NotificationUpdate
+from app import models
+from app.database import get_db
+from app.enums import Entity
+from app.helpers import entity_not_found_exception
+from app.notification_factory import NotificationModelFactory
+from app.schemas import (
+    AnyNotificationCreate,
+    NotificationResponse,
+    NotificationUpdate,
+)
 
 router = APIRouter()
 
@@ -38,7 +43,7 @@ async def get_notification(
     "/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_notification(
-    notification: NotificationCreate, db: Annotated[AsyncSession, Depends(get_db)]
+    notification: AnyNotificationCreate, db: Annotated[AsyncSession, Depends(get_db)]
 ):
     result = await db.execute(
         select(models.User).where(models.User.id == notification.user_id)
@@ -48,18 +53,20 @@ async def create_notification(
     if not user:
         entity_not_found_exception(Entity.USER)
 
-    new_notification = models.Notification(
-        title=notification.title,
-        content=notification.content,
-        channel=notification.channel,
-        user_id=notification.user_id,
-    )
+    notification_to_persist = NotificationModelFactory.create_from_schema(notification)
+    # new_notification = models.Notification(
+    #     title=notification.title,
+    #     content=notification.content,
+    #     channel=notification.channel,
+    #     user_id=notification.user_id,
+    # )
 
-    db.add(new_notification)
+    db.add(notification_to_persist)
     await db.commit()
-    await db.refresh(new_notification)
+    await db.refresh(notification_to_persist)
+    await db.refresh(notification_to_persist, attribute_names=["sender"])
 
-    return new_notification
+    return notification_to_persist
 
 
 @router.patch("/{notification_id}", response_model=NotificationResponse)

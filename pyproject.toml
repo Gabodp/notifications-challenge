@@ -17,12 +17,5 @@ dependencies = [
     "sqlalchemy>=2.0.54",
 ]
 
-[tool.uv]
-package = false
-
-[project.scripts]
-notifications-challenge = "notifications_challenge:main"
-
-[build-system]
-requires = ["uv_build>=0.12.18,<0.13.0"]
-build-backend = "uv_build"
+[tool.fastapi]
+entrypoint = "app.main:app"
