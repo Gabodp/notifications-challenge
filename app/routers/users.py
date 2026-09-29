@@ -8,15 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
-from app.auth import (
+from app.core.auth import (
     create_access_token,
     hash_password,
     oauth2_scheme,
     verify_access_token,
     verify_password,
 )
-from app.config import settings
-from app.database import get_db
+from app.core.config import settings
+from app.core.database import get_db
 from app.enums import Entity
 from app.helpers import entity_already_exists_exception, entity_not_found_exception
 from app.schemas import (

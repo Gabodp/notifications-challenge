@@ -1,4 +1,4 @@
-from app.database import Base
+from app.core.database import Base
 from app.models import EmailNotification, PushNotification, SMSNotification
 from app.schemas import AnyNotificationCreate
 

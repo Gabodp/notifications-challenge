@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
-from app.database import get_db
+from app.core.database import get_db
 from app.enums import Entity
 from app.helpers import entity_not_found_exception
 from app.notification_factory import NotificationModelFactory
