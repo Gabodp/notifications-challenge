@@ -8,17 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
-from app.auth import (
+from app.core.auth import (
+    CurrentUser,
     create_access_token,
     hash_password,
-    oauth2_scheme,
-    verify_access_token,
     verify_password,
 )
-from app.config import settings
-from app.database import get_db
+from app.core.config import settings
+from app.core.database import get_db
 from app.enums import Entity
-from app.helpers import entity_already_exists_exception, entity_not_found_exception
+from app.helpers import (
+    action_not_authorized,
+    entity_already_exists_exception,
+    entity_not_found_exception,
+)
 from app.schemas import (
     NotificationResponse,
     Token,
@@ -103,37 +106,8 @@ async def login_for_access_token(
 
 
 @router.get("/me", response_model=UserPrivate)
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    user_id = verify_access_token(token)
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Validate user_id is a valid integer (defense against malformed JWT)
-    try:
-        user_id_int = int(user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    result = await db.execute(select(models.User).where(models.User.id == user_id_int))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+async def get_current_user(current_user: CurrentUser):
+    return current_user
 
 
 @router.get("/{user_id}", response_model=UserPublic)
@@ -148,10 +122,16 @@ async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
 
 @router.patch("/{user_id}", response_model=UserPrivate)
 async def update_partial_user(
-    user_id: int, user_update: UserUpdate, db: Annotated[AsyncSession, Depends(get_db)]
+    user_id: int,
+    user_update: UserUpdate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    result = await db.execute(select(models.User).where(models.User.id == user_id))
 
+    if current_user.id != user_id:
+        action_not_authorized(Entity.USER)
+
+    result = await db.execute(select(models.User).where(models.User.id == user_id))
     existing_user = result.scalars().first()
     if not existing_user:
         entity_not_found_exception(Entity.USER)
@@ -217,3 +197,21 @@ async def get_user_notifications(
     notifications = result.scalars().all()
 
     return notifications
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if current_user.id != user_id:
+        action_not_authorized(Entity.USER)
+
+    result = await db.execute(select(models.User).where(models.User.id == user_id))
+    existing_user = result.scalars().first()
+    if not existing_user:
+        entity_not_found_exception(Entity.USER)
+
+    await db.delete(existing_user)
+    await db.commit()

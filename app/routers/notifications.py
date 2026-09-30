@@ -1,18 +1,20 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app import models
-from app.database import get_db
+from app.core.auth import CurrentUser
+from app.core.database import get_db
 from app.enums import Entity
-from app.helpers import entity_not_found_exception
+from app.helpers import action_not_authorized, entity_not_found_exception
 from app.notification_factory import NotificationModelFactory
 from app.schemas import (
     AnyNotificationCreate,
+    AnyNotificationUpdate,
     NotificationResponse,
-    NotificationUpdate,
 )
 
 router = APIRouter()
@@ -20,7 +22,9 @@ router = APIRouter()
 
 @router.get("/", response_model=list[NotificationResponse])
 async def get_notifications(db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(models.Notification))
+    result = await db.execute(
+        select(models.Notification).options(selectinload(models.Notification.sender))
+    )
     return result.scalars().all()
 
 
@@ -29,7 +33,9 @@ async def get_notification(
     notification_id: int, db: Annotated[AsyncSession, Depends(get_db)]
 ):
     result = await db.execute(
-        select(models.Notification).where(models.Notification.id == notification_id)
+        select(models.Notification)
+        .options(selectinload(models.Notification.sender))
+        .where(models.Notification.id == notification_id)
     )
 
     notification = result.scalars().first()
@@ -43,23 +49,13 @@ async def get_notification(
     "/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_notification(
-    notification: AnyNotificationCreate, db: Annotated[AsyncSession, Depends(get_db)]
+    notification: AnyNotificationCreate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    result = await db.execute(
-        select(models.User).where(models.User.id == notification.user_id)
+    notification_to_persist = NotificationModelFactory.create_from_schema(
+        notification, current_user.id
     )
-
-    user = result.scalars().first()
-    if not user:
-        entity_not_found_exception(Entity.USER)
-
-    notification_to_persist = NotificationModelFactory.create_from_schema(notification)
-    # new_notification = models.Notification(
-    #     title=notification.title,
-    #     content=notification.content,
-    #     channel=notification.channel,
-    #     user_id=notification.user_id,
-    # )
 
     db.add(notification_to_persist)
     await db.commit()
@@ -72,7 +68,8 @@ async def create_notification(
 @router.patch("/{notification_id}", response_model=NotificationResponse)
 async def update_notification(
     notification_id: int,
-    notification_data: NotificationUpdate,
+    notification_data: AnyNotificationUpdate,
+    current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(
@@ -83,9 +80,18 @@ async def update_notification(
     if not notification:
         entity_not_found_exception(Entity.NOTIFICATION)
 
-    update_data = notification_data.model_dump(exclude_unset=True)
+    if current_user.id != notification.user_id:
+        action_not_authorized(Entity.NOTIFICATION)
+
+    if notification_data.channel != notification.channel.value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The notification channel cannot be changed",
+        )
+
+    update_data = notification_data.model_dump(exclude_unset=True, exclude={"channel"})
     for field, value in update_data.items():
-        setattr(notification_data, field, value)
+        setattr(notification, field, value)
 
     await db.commit()
     await db.refresh(notification, attribute_names=["sender"])
@@ -94,7 +100,9 @@ async def update_notification(
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notification(
-    notification_id: int, db: Annotated[AsyncSession, Depends(get_db)]
+    notification_id: int,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(
         select(models.Notification).where(models.Notification.id == notification_id)
@@ -103,6 +111,9 @@ async def delete_notification(
 
     if not notification:
         entity_not_found_exception(Entity.NOTIFICATION)
+
+    if current_user.id != notification.user_id:
+        action_not_authorized(Entity.NOTIFICATION)
 
     await db.delete(notification)
     await db.commit()
