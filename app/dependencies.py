@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.notification_service import NotificationService
+from app.services.user_service import UserService
 from app.strategy.notification_strategy import (
     EmailNotificationStrategy,
     PushNotificationStrategy,
@@ -31,4 +32,16 @@ def get_notification_service(
 NotificationServiceDependency = Annotated[
     NotificationService,
     Depends(get_notification_service),
+]
+
+
+def get_user_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserService:
+    return UserService(db=db)
+
+
+UserServiceDependency = Annotated[
+    UserService,
+    Depends(get_user_service),
 ]
