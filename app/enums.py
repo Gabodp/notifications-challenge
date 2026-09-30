@@ -9,6 +9,12 @@ class Channel(Enum):
 
 
 @unique
+class Status(Enum):
+    SCHEDULED = "scheduled"
+    DELIVERED = "delivered"
+
+
+@unique
 class Entity(Enum):
     NOTIFICATION = "notification"
     USER = "user"

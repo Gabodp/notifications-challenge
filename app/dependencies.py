@@ -1,7 +1,9 @@
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.services.notification_service import NotificationService
 from app.strategy.notification_strategy import (
     EmailNotificationStrategy,
@@ -20,6 +22,13 @@ def get_strategy_selector() -> NotificationStrategySelector:
 
 
 def get_notification_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
     selector: Annotated[NotificationStrategySelector, Depends(get_strategy_selector)],
 ) -> NotificationService:
-    return NotificationService(strategy_selector=selector)
+    return NotificationService(db=db, strategy_selector=selector)
+
+
+NotificationServiceDependency = Annotated[
+    NotificationService,
+    Depends(get_notification_service),
+]
