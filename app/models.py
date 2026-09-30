@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.enums import Channel
+from app.enums import Channel, Status
 
 
 class User(Base):
@@ -30,6 +30,12 @@ class Notification(Base):
     title: Mapped[str] = mapped_column(String(50), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[Channel] = mapped_column(Enum(Channel), nullable=False)
+    status: Mapped[Status] = mapped_column(
+        Enum(Status, name="delivery_status"),
+        default=Status.SCHEDULED,
+        server_default=Status.SCHEDULED.name,
+        nullable=False,
+    )
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
         nullable=False,

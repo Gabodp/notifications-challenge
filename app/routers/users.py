@@ -1,27 +1,10 @@
-from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app import models
-from app.core.auth import (
-    CurrentUser,
-    create_access_token,
-    hash_password,
-    verify_password,
-)
-from app.core.config import settings
-from app.core.database import get_db
-from app.enums import Entity
-from app.helpers import (
-    action_not_authorized,
-    entity_already_exists_exception,
-    entity_not_found_exception,
-)
+from app.core.auth import CurrentUser
+from app.dependencies import UserServiceDependency
 from app.schemas import (
     NotificationResponse,
     Token,
@@ -39,70 +22,16 @@ router = APIRouter()
     response_model=UserPrivate,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(
-        select(models.User).where(
-            func.lower(models.User.username) == user.username.lower()
-        )
-    )
-    existing_user = result.scalars().first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists",
-        )
-    result = await db.execute(
-        select(models.User).where(func.lower(models.User.email) == user.email.lower()),
-    )
-    existing_email = result.scalars().first()
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-    new_user = models.User(
-        name=user.name,
-        username=user.username,  ## Did not add lower() to preserve casing for front-end
-        email=user.email.lower(),
-        password_hash=hash_password(user.password),
-    )
-
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-
-    return new_user
+async def create_user(user: UserCreate, user_service: UserServiceDependency):
+    return await user_service.create(user)
 
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    user_service: UserServiceDependency,
 ):
-
-    result = await db.execute(
-        select(models.User).where(
-            func.lower(models.User.email) == form_data.username.lower(),
-        ),
-    )
-    user = result.scalars().first()
-
-    # Verify user exists and password is correct
-    # Don't reveal which one failed (security best practice)
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Create access token with user id as subject
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires,
-    )
-    return Token(access_token=access_token, token_type="bearer")
+    return await user_service.authenticate(form_data.username, form_data.password)
 
 
 @router.get("/me", response_model=UserPrivate)
@@ -111,13 +40,8 @@ async def get_current_user(current_user: CurrentUser):
 
 
 @router.get("/{user_id}", response_model=UserPublic)
-async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(models.User).where(models.User.id == user_id))
-    user = result.scalars().first()
-    if user:
-        return user
-
-    entity_not_found_exception(Entity.USER)
+async def get_user(user_id: int, user_service: UserServiceDependency):
+    return await user_service.get(user_id)
 
 
 @router.patch("/{user_id}", response_model=UserPrivate)
@@ -125,93 +49,23 @@ async def update_partial_user(
     user_id: int,
     user_update: UserUpdate,
     current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    user_service: UserServiceDependency,
 ):
-
-    if current_user.id != user_id:
-        action_not_authorized(Entity.USER)
-
-    result = await db.execute(select(models.User).where(models.User.id == user_id))
-    existing_user = result.scalars().first()
-    if not existing_user:
-        entity_not_found_exception(Entity.USER)
-
-    if (
-        user_update.username is not None
-        and user_update.username.lower() != existing_user.username.lower()
-    ):
-        user_w_new_username = (
-            await db.execute(
-                select(models.User).where(
-                    func.lower(models.User.username) == user_update.username.lower()
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        if user_w_new_username:
-            entity_already_exists_exception(Entity.USERNAME)
-
-    if (
-        user_update.email.lower() is not None
-        and user_update.email.lower() != existing_user.email.lower()
-    ):
-        user_w_new_email = (
-            await db.execute(
-                select(models.User).where(
-                    func.lower(models.User.email) == user_update.email.lower()
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        if user_w_new_email:
-            entity_already_exists_exception(Entity.EMAIL)
-
-    if user_update.username is not None:
-        existing_user.username = user_update.username
-    if user_update.email is not None:
-        existing_user.email = user_update.email.lower()
-
-    await db.commit()
-    await db.refresh(existing_user)
-    return existing_user
+    return await user_service.update(user_id, user_update, current_user.id)
 
 
 @router.get("/{user_id}/notifications", response_model=list[NotificationResponse])
 async def get_user_notifications(
-    user_id: int, db: Annotated[AsyncSession, Depends(get_db)]
+    user_id: int,
+    user_service: UserServiceDependency,
 ):
-    result = await db.execute(select(models.User).where(models.User.id == user_id))
-    existing_user = result.scalars().first()
-    if not existing_user:
-        entity_not_found_exception(Entity.USER)
-
-    result = await db.execute(
-        select(models.Notification)
-        .options(selectinload(models.Notification.sender))
-        .where(models.Notification.user_id == user_id)
-    )
-    notifications = result.scalars().all()
-
-    return notifications
+    return await user_service.get_notifications(user_id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    user_service: UserServiceDependency,
 ):
-    if current_user.id != user_id:
-        action_not_authorized(Entity.USER)
-
-    result = await db.execute(select(models.User).where(models.User.id == user_id))
-    existing_user = result.scalars().first()
-    if not existing_user:
-        entity_not_found_exception(Entity.USER)
-
-    await db.delete(existing_user)
-    await db.commit()
+    await user_service.delete(user_id, current_user.id)
