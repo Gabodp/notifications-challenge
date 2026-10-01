@@ -37,6 +37,18 @@ class NotificationService:
 
         return notification
 
+    async def create(
+        self, payload: AnyNotificationCreate, user_id: int
+    ) -> Notification:
+        notification = NotificationModelFactory.create_from_schema(payload, user_id)
+
+        self.db.add(notification)
+        await self.db.commit()
+        await self.db.refresh(notification)
+        await self.db.refresh(notification, attribute_names=["sender"])
+
+        return notification
+
     async def update(
         self,
         notification_id: int,
@@ -54,6 +66,9 @@ class NotificationService:
             Channel.PUSH: {"title", "content", "device_token"},
         }
 
+        ## This should be move somwhere else. Maybe created from the models.keys - id?
+        ## I am worried whenever we add a new property for a model, we just forget to add it here
+
         update_data = payload.model_dump(exclude_unset=True, exclude={"channel"})
         invalid_fields = update_data.keys() - allowed_fields[notification.channel]
 
@@ -69,18 +84,6 @@ class NotificationService:
             setattr(notification, field, value)
 
         await self.db.commit()
-        await self.db.refresh(notification, attribute_names=["sender"])
-
-        return notification
-
-    async def create(
-        self, payload: AnyNotificationCreate, user_id: int
-    ) -> Notification:
-        notification = NotificationModelFactory.create_from_schema(payload, user_id)
-
-        self.db.add(notification)
-        await self.db.commit()
-        await self.db.refresh(notification)
         await self.db.refresh(notification, attribute_names=["sender"])
 
         return notification

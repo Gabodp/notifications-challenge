@@ -1,6 +1,8 @@
 import os
 from collections.abc import AsyncGenerator
 
+from app.enums import Channel
+
 ## Test DB and Bucket
 os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://admin:admin@localhost/test_notifications"
@@ -130,3 +132,27 @@ async def login_user(
 
 def auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+async def create_test_notification_email(
+    client: AsyncClient,
+    token: str,
+    title: str = "Test title",
+    content: str = "Test content",
+    channel: str = Channel.EMAIL.value,
+    target_email: str = "test@example.com",
+) -> dict:
+
+    response = await client.post(
+        "/api/notifications",
+        json={
+            "title": title,
+            "content": content,
+            "channel": channel,
+            "target_email": target_email,
+        },
+        headers=auth_header(token),
+    )
+
+    assert response.status_code == 201, f"Failed to create user: {response.text}"
+    return response.json()

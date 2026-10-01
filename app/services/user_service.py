@@ -125,6 +125,9 @@ class UserService:
 
             user.email = payload.email.lower()
 
+        if payload.name is not None:
+            user.name = payload.name
+
         await self.db.commit()
         await self.db.refresh(user)
 
