@@ -1,8 +1,7 @@
 # Notifications API
 
-<!-- Replace these placeholder badges when CI and coverage are configured. -->
-![Build](https://img.shields.io/badge/build-placeholder-lightgrey)
-![Coverage](https://img.shields.io/badge/coverage-placeholder-lightgrey)
+[![Tests and coverage](https://github.com/Gabodp/notifications-challenge/actions/workflows/coverage.yml/badge.svg)](https://github.com/Gabodp/notifications-challenge/actions/workflows/coverage.yml)
+[![Coverage Status](https://coveralls.io/repos/github/Gabodp/notifications-challenge/badge.svg?branch=main)](https://coveralls.io/github/Gabodp/notifications-challenge?branch=main)
 
 A REST API built with FastAPI for creating and managing notifications across email, SMS, and push channels.
 
@@ -171,6 +170,9 @@ Run the complete test suite:
 ```sh
 uv run pytest -v
 ```
+
+Pushes to `main` and pull requests run the tests with Coverage.py and upload
+the resulting report to Coveralls through GitHub Actions.
 
 The tests replace FastAPI's normal database dependency with a test session.
 Each test runs inside an isolated transaction that is rolled back afterward.

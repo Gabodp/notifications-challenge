@@ -17,9 +17,10 @@ async def test_get_user_not_found(client: AsyncClient):
 
 @pytest.mark.anyio
 async def test_get_user_success(client: AsyncClient):
-    await create_test_user(client, email="test@example.com")
+    user = await create_test_user(client, email="test@example.com")
 
-    result = await client.get("/api/users/1")
+    user_id = user["id"]
+    result = await client.get(f"/api/users/{user_id}")
     assert result.status_code == 200
 
 
