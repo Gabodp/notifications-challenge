@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.enums import Channel
 
@@ -69,29 +69,8 @@ class NotificationUpdate(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=50)
     content: str | None = Field(default=None, min_length=1, max_length=150)
-
-    @model_validator(mode="after")
-    def reject_null_updates(self) -> Self:
-        # Omitted fields are allowed, but explicitly sending null is not.
-        # This will avoid 500 Internal errors by explicitly returning an explanation.
-        for field in self.model_fields_set:
-            if getattr(self, field) is None:
-                raise ValueError(f"{field} cannot be null")
-        return self
-
-
-class EmailNotificationUpdate(NotificationUpdate):
-    channel: Literal["email"]
-    target_email: EmailStr | None = Field(default=None, max_length=120)
-
-
-class SMSNotificationUpdate(NotificationUpdate):
-    channel: Literal["sms"]
+    target_email: EmailStr | None = None
     target_phone_number: int | None = None
-
-
-class PushNotificationUpdate(NotificationUpdate):
-    channel: Literal["push"]
     device_token: str | None = Field(default=None, min_length=1, max_length=25)
 
 
@@ -101,15 +80,10 @@ class NotificationResponse(NotificationBase):
     id: int
     title: str
     content: str
+    user_id: int
     channel: Channel
     sender: UserPublic
     date_created: datetime
-
-
-AnyNotificationUpdate = Annotated[
-    EmailNotificationUpdate | SMSNotificationUpdate | PushNotificationUpdate,
-    Field(discriminator="channel"),
-]
 
 
 AnyNotificationCreate = Annotated[

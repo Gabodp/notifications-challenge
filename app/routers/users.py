@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.post(
-    "/",
+    "",
     response_model=UserPrivate,
     status_code=status.HTTP_201_CREATED,
 )

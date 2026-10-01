@@ -12,7 +12,7 @@ def entity_not_found_exception(entity: Entity):
 def action_not_authorized(entity: Entity):
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail=f"Not authorized to edit/delete {entity.value}",
+        detail=f"Not authorized to edit/delete this {entity.value}",
     )
 
 
