@@ -11,14 +11,14 @@ from app.core.database import get_db
 from app.dependencies import NotificationServiceDependency
 from app.schemas import (
     AnyNotificationCreate,
-    AnyNotificationUpdate,
     NotificationResponse,
+    NotificationUpdate,
 )
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[NotificationResponse])
+@router.get("", response_model=list[NotificationResponse])
 async def get_notifications(db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
         select(models.Notification).options(selectinload(models.Notification.sender))
@@ -26,7 +26,7 @@ async def get_notifications(db: Annotated[AsyncSession, Depends(get_db)]):
     return result.scalars().all()
 
 
-@router.get("/{notification_id}/", response_model=NotificationResponse)
+@router.get("/{notification_id}", response_model=NotificationResponse)
 async def get_notification(
     notification_id: int,
     notification_service: NotificationServiceDependency,
@@ -35,7 +35,7 @@ async def get_notification(
 
 
 @router.post(
-    "/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_notification(
     notification: AnyNotificationCreate,
@@ -48,7 +48,7 @@ async def create_notification(
 @router.patch("/{notification_id}", response_model=NotificationResponse)
 async def update_notification(
     notification_id: int,
-    notification_data: AnyNotificationUpdate,
+    notification_data: NotificationUpdate,
     current_user: CurrentUser,
     notification_service: NotificationServiceDependency,
 ):

@@ -4,11 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
-from app.enums import Entity
+from app.enums import Channel, Entity
 from app.helpers import action_not_authorized, entity_not_found_exception
 from app.models import Notification
 from app.notification_factory import NotificationModelFactory
-from app.schemas import AnyNotificationCreate, AnyNotificationUpdate
+from app.schemas import AnyNotificationCreate, NotificationUpdate
 from app.strategy.strategy_selector import NotificationStrategySelector
 
 
@@ -37,32 +37,6 @@ class NotificationService:
 
         return notification
 
-    async def update(
-        self,
-        notification_id: int,
-        payload: AnyNotificationUpdate,
-        user_id: int,
-    ) -> Notification:
-        notification = await self.get(notification_id)
-
-        if user_id != notification.user_id:
-            action_not_authorized(Entity.NOTIFICATION)
-
-        if payload.channel != notification.channel.value:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="The notification channel cannot be changed",
-            )
-
-        update_data = payload.model_dump(exclude_unset=True, exclude={"channel"})
-        for field, value in update_data.items():
-            setattr(notification, field, value)
-
-        await self.db.commit()
-        await self.db.refresh(notification, attribute_names=["sender"])
-
-        return notification
-
     async def create(
         self, payload: AnyNotificationCreate, user_id: int
     ) -> Notification:
@@ -71,6 +45,45 @@ class NotificationService:
         self.db.add(notification)
         await self.db.commit()
         await self.db.refresh(notification)
+        await self.db.refresh(notification, attribute_names=["sender"])
+
+        return notification
+
+    async def update(
+        self,
+        notification_id: int,
+        payload: NotificationUpdate,
+        user_id: int,
+    ) -> Notification:
+        notification = await self.get(notification_id)
+
+        if user_id != notification.user_id:
+            action_not_authorized(Entity.NOTIFICATION)
+
+        allowed_fields = {
+            Channel.EMAIL: {"title", "content", "target_email"},
+            Channel.SMS: {"title", "content", "target_phone_number"},
+            Channel.PUSH: {"title", "content", "device_token"},
+        }
+
+        ## This should be move somwhere else. Maybe created from the models.keys - id?
+        ## I am worried whenever we add a new property for a model, we just forget to add it here
+
+        update_data = payload.model_dump(exclude_unset=True, exclude={"channel"})
+        invalid_fields = update_data.keys() - allowed_fields[notification.channel]
+
+        if invalid_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"Fields {invalid_fields} are not valid for channel {notification.channel.value}"
+                ),
+            )
+
+        for field, value in update_data.items():
+            setattr(notification, field, value)
+
+        await self.db.commit()
         await self.db.refresh(notification, attribute_names=["sender"])
 
         return notification
