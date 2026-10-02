@@ -1,7 +1,12 @@
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_header, create_test_user, login_user
+from tests.conftest import (
+    auth_header,
+    create_test_notification_email,
+    create_test_user,
+    login_user,
+)
 
 
 @pytest.mark.anyio
@@ -136,3 +141,17 @@ async def test_update_notification_wrong_user(client: AsyncClient):
     assert (
         response.json()["detail"] == "Not authorized to edit/delete this notification"
     )
+
+
+@pytest.mark.anyio
+async def test_delete_notification_success(client: AsyncClient):
+    await create_test_user(client)
+    token = await login_user(client)
+
+    notification = await create_test_notification_email(client, token)
+    notification_id = notification["id"]
+
+    response = await client.delete(
+        f"/api/notifications/{notification_id}", headers=auth_header(token)
+    )
+    assert response.status_code == 204

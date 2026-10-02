@@ -77,6 +77,24 @@ async def test_create_user_duplicate_email(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_create_user_duplicate_username(client: AsyncClient):
+    await create_test_user(client, username="example")
+
+    response = await client.post(
+        "/api/users",
+        json={
+            "name": "Test Nane",
+            "username": "example",
+            "email": "test@example.com",
+            "password": "password",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Username already exists"
+
+
+@pytest.mark.anyio
 async def test_get_current_user(client: AsyncClient):
     await create_test_user(client)
     token = await login_user(client)
@@ -144,3 +162,13 @@ async def test_get_user_notifications(client: AsyncClient):
     assert len(response.json()) == 1
     assert response.json()[0]["title"] == "Test title"
     assert response.json()[0]["channel"] == "email"
+
+
+@pytest.mark.anyio
+async def test_delete_user_success(client: AsyncClient):
+    user = await create_test_user(client)
+    token = await login_user(client)
+
+    user_id = user["id"]
+    response = await client.delete(f"/api/users/{user_id}", headers=auth_header(token))
+    assert response.status_code == 204
