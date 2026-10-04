@@ -1,0 +1,208 @@
+{% extends "layout.html" %}
+{% set notification = post %}
+{% block content %}
+    <article class="content-section py-3 px-4 mb-4">
+        <div class="d-flex align-items-start gap-4">
+            <div class="flex-grow-1">
+                <div class="article-metadata mb-2">
+                    <span class="me-2">{{ notification.sender.username }}</span>
+                    <small class="text-body-secondary">{{ notification.date_created.strftime('%B %d, %Y') }}</small>
+                    <span class="badge text-bg-secondary ms-2">{{ notification.channel.value|upper }}</span>
+                </div>
+                <h2 class="article-title">{{ notification.title }}</h2>
+                <p class="article-content">{{ notification.content }}</p>
+                <div id="notificationActions" class="post-actions mt-3 pt-3 border-top d-none">
+                    <button type="button"
+                            class="btn btn-outline-secondary me-1"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editModal">Edit Notification</button>
+                    <button type="button"
+                            class="btn btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteModal">Delete Notification</button>
+                </div>
+            </div>
+        </div>
+    </article>
+    <!-- Edit Notification Modal -->
+    <div class="modal fade"
+         id="editModal"
+         tabindex="-1"
+         aria-labelledby="editModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">Edit Notification</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <form id="editNotificationForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="editTitle" class="form-label">Title</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="editTitle"
+                                   name="title"
+                                   value="{{ notification.title }}"
+                                   maxlength="50"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContent" class="form-label">Content</label>
+                            <textarea class="form-control"
+                                      id="editContent"
+                                      name="content"
+                                      rows="5"
+                                      maxlength="150"
+                                      required>{{ notification.content }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade"
+         id="deleteModal"
+         tabindex="-1"
+         aria-labelledby="deleteModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteModalLabel">Delete Notification?</h5>
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">Are you sure you want to delete this notification? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block scripts %}
+    <script type="module">
+    import { getCurrentUser, getToken } from '/static/js/auth.js';
+    import { getErrorMessage, showModal, hideModal } from '/static/js/utils.js';
+
+    const notificationId = {{ notification.id }};
+    const notificationUserId = {{ notification.user_id }};
+
+    // Show edit/delete buttons only if current user owns this notification
+    async function checkOwnership() {
+        const user = await getCurrentUser();
+        if (user && user.id === notificationUserId) {
+            document.getElementById('notificationActions').classList.remove('d-none');
+        }
+    }
+
+    // Edit Notification Form Handler
+    const editForm = document.getElementById('editNotificationForm');
+    editForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const token = getToken();
+        if (!token) { window.location.href = '/login'; return; }
+
+        const formData = new FormData(editForm);
+        const notificationData = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(notificationData),
+            });
+
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            if (response.status === 403) {
+                document.getElementById('errorMessage').textContent =
+                    'You are not authorized to edit this notification.';
+                hideModal('editModal');
+                showModal('errorModal');
+                return;
+            }
+
+            if (response.ok) {
+                document.getElementById('successMessage').textContent =
+                    'Notification updated successfully!';
+                hideModal('editModal');
+                showModal('successModal');
+
+                document.getElementById('successModal').addEventListener('hidden.bs.modal', () => {
+                    window.location.reload();
+                }, { once: true });
+            } else {
+                const error = await response.json();
+                document.getElementById('errorMessage').textContent = getErrorMessage(error);
+                hideModal('editModal');
+                showModal('errorModal');
+            }
+        } catch (error) {
+            document.getElementById('errorMessage').textContent =
+                'Network error. Please check your connection and try again.';
+            showModal('errorModal');
+        }
+    });
+
+    // Delete Notification Handler
+    const deleteButton = document.getElementById('confirmDelete');
+    deleteButton.addEventListener('click', async () => {
+        const token = getToken();
+        if (!token) { window.location.href = '/login'; return; }
+
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            if (response.status === 403) {
+                document.getElementById('errorMessage').textContent =
+                    'You are not authorized to delete this notification.';
+                hideModal('deleteModal');
+                showModal('errorModal');
+                return;
+            }
+
+            if (response.status === 204) {
+                window.location.href = '/';
+            } else {
+                const error = await response.json();
+                document.getElementById('errorMessage').textContent = getErrorMessage(error);
+                hideModal('deleteModal');
+                showModal('errorModal');
+            }
+        } catch (error) {
+            document.getElementById('errorMessage').textContent =
+                'Network error. Please check your connection and try again.';
+            showModal('errorModal');
+        }
+    });
+
+    checkOwnership();
+    </script>
+{% endblock scripts %}

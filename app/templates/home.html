@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block content %}
+    {% for noti in notifications %}
+        <article class="content-section py-3 px-4 mb-4">
+            <div class="d-flex align-items-start gap-4">
+                <div class="flex-grow-1">
+                    <div class="article-metadata mb-2">
+                        <span class="me-2">{{ noti.sender.username }}</span>
+                        <small class="text-body-secondary">{{ noti.date_created.strftime('%B %d, %Y') }}</small>
+                        <span class="badge text-bg-secondary ms-2">{{ noti.channel.value|upper }}</span>
+                    </div>
+                    <h2>
+                        <a class="article-title"
+                           href="{{ url_for('post_page', notification_id=noti.id) }}">{{ noti.title }}</a>
+                    </h2>
+                    <p class="article-content">{{ noti.content }}</p>
+                </div>
+            </div>
+        </article>
+    {% else %}
+        <p class="text-body-secondary">No notifications yet.</p>
+    {% endfor %}
+{% endblock content %}
