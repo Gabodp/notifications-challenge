@@ -37,6 +37,16 @@ class NotificationService:
 
         return notification
 
+    async def get_all(self):
+        result = await self.db.execute(
+            select(models.Notification)
+            .options(selectinload(models.Notification.sender))
+            .order_by(models.Notification.date_created.desc())
+        )
+
+        notifications = result.scalars().all()
+        return notifications
+
     async def create(
         self, payload: AnyNotificationCreate, user_id: int
     ) -> Notification:

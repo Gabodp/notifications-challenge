@@ -7,6 +7,8 @@ wheels/
 *.egg-info
 .coverage
 coverage.xml
+.DS_Store
+app/.DS_Store
 
 # Virtual environments
 .venv
