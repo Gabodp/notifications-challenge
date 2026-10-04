@@ -7,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import CurrentUser
 from app.core.database import engine, get_db
 from app.dependencies import NotificationServiceDependency, UserServiceDependency
 from app.routers import notifications, users
@@ -98,17 +97,17 @@ async def post_page(
 async def user_notifications_page(
     request: Request,
     user_id: int,
-    current_user: CurrentUser,
     user_service: UserServiceDependency,
 ):
-    notifications = await user_service.get_notifications(current_user.id)
+    user = await user_service.get(user_id)
+    notifications = await user_service.get_notifications(user_id)
     return templates.TemplateResponse(
         request,
         "user_notifications.html",
         {
             "notifications": notifications,
-            "user": current_user,
-            "title": f"{current_user.username}'s Notifications",
+            "user": user,
+            "title": f"{user.username}'s Notifications",
         },
     )
 
